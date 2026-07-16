@@ -1,5 +1,6 @@
 using RiskManagement.Api.Extensions;
 using RiskManagement.Infrastructure.Data;
+using RiskManagement.Infrastructure.SeedData;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -27,6 +28,7 @@ using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<RiskDbContext>();
     await db.Database.EnsureCreatedAsync();
+    await RiskSeedData.SeedAsync(db);
 }
 
 app.Run();

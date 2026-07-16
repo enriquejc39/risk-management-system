@@ -25,6 +25,12 @@ public class Risk
     public RiskStatus Status { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
+    public DateTime? LastReviewDate { get; set; }
     public string CreatedBy { get; set; } = string.Empty;
     public string? UpdatedBy { get; set; }
+
+    public ICollection<RiskControl> RiskControls { get; set; } = new List<RiskControl>();
+    public ICollection<ActionPlan> ActionPlans { get; set; } = new List<ActionPlan>();
+    public ICollection<Evidence> Evidences { get; set; } = new List<Evidence>();
+    public ICollection<RiskAuditRequirement> AuditRequirements { get; set; } = new List<RiskAuditRequirement>();
 }

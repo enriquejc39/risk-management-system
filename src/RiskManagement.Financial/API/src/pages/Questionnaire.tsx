@@ -1,148 +1,212 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 interface Question {
   id: string
   text: string
-  type: 'text' | 'number' | 'select' | 'textarea'
-  options?: string[]
+  questionType: string
+  options: string | null
+  order: number
+  isRequired: boolean
 }
 
-const questions: Question[] = [
-  { id: 'name', text: '¿Cuál es el nombre del riesgo?', type: 'text' },
-  { id: 'description', text: 'Describe el riesgo identificado', type: 'textarea' },
-  { id: 'probability', text: 'Probabilidad (1-5)', type: 'select', options: ['1', '2', '3', '4', '5'] },
-  { id: 'impact', text: 'Impacto (1-5)', type: 'select', options: ['1', '2', '3', '4', '5'] },
-  { id: 'area', text: '¿A qué área pertenece?', type: 'text' },
-  { id: 'category', text: 'Categoría del riesgo', type: 'text' },
-  { id: 'owner', text: 'Responsable del riesgo', type: 'text' },
-]
+interface QuestionnaireData {
+  id: string
+  name: string
+  description: string
+  areaId: string | null
+  area: { name: string } | null
+  questions: Question[]
+}
+
+interface AreaOption {
+  id: string
+  name: string
+}
+
+interface CategoryOption {
+  id: string
+  name: string
+}
 
 export default function Questionnaire() {
+  const [questionnaires, setQuestionnaires] = useState<QuestionnaireData[]>([])
+  const [areas, setAreas] = useState<AreaOption[]>([])
+  const [categories, setCategories] = useState<CategoryOption[]>([])
+  const [selectedQuestionnaire, setSelectedQuestionnaire] = useState<string>('')
+  const [selectedArea, setSelectedArea] = useState<string>('')
+  const [selectedCategory, setSelectedCategory] = useState<string>('')
   const [currentStep, setCurrentStep] = useState(0)
   const [answers, setAnswers] = useState<Record<string, string>>({})
+  const [submitting, setSubmitting] = useState(false)
+  const [submitted, setSubmitted] = useState(false)
   const [showChat, setShowChat] = useState(false)
 
-  const currentQuestion = questions[currentStep]
+  const currentQ = questionnaires.find(q => q.id === selectedQuestionnaire)
+  const questions = currentQ?.questions.sort((a, b) => a.order - b.order) || []
+
+  useEffect(() => {
+    Promise.all([
+      fetch('/api/questionnaires').then(r => r.json()),
+      fetch('/api/catalog/areas').then(r => r.json()),
+    ]).then(([q, a]) => {
+      setQuestionnaires(q)
+      setAreas(a)
+    }).catch(console.error)
+  }, [])
+
+  useEffect(() => {
+    if (selectedArea) {
+      fetch(`/api/catalog/categories/${selectedArea}`)
+        .then(r => r.json())
+        .then(setCategories)
+        .catch(console.error)
+    }
+  }, [selectedArea])
+
+  const handleAreaChange = (areaId: string) => {
+    setSelectedArea(areaId)
+    setSelectedCategory('')
+    const q = questionnaires.find(q => q.areaId === areaId || q.areaId === null)
+    if (q) setSelectedQuestionnaire(q.id)
+  }
 
   const handleAnswer = (value: string) => {
-    setAnswers(prev => ({ ...prev, [currentQuestion.id]: value }))
+    const q = questions[currentStep]
+    if (q) setAnswers(prev => ({ ...prev, [q.id]: value }))
   }
 
-  const handleNext = () => {
-    if (currentStep < questions.length - 1) {
-      setCurrentStep(prev => prev + 1)
+  const handleSubmit = async () => {
+    if (!currentQ || !selectedArea || !selectedCategory) return
+    setSubmitting(true)
+    try {
+      const res = await fetch('/api/questionnaires/submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          questionnaireId: currentQ.id,
+          areaId: selectedArea,
+          categoryId: selectedCategory,
+          riskOwnerId: '00000000-0000-0000-0000-000000000000',
+          answers: Object.fromEntries(questions.map(q => [q.id, answers[q.id] || '']))
+        })
+      })
+      if (res.ok) setSubmitted(true)
+      else alert('Error al enviar el cuestionario')
+    } catch (err) {
+      console.error('Error:', err)
+      alert('Error de conexión')
+    } finally {
+      setSubmitting(false)
     }
   }
 
-  const handlePrevious = () => {
-    if (currentStep > 0) {
-      setCurrentStep(prev => prev - 1)
-    }
-  }
-
-  const handleSubmit = () => {
-    console.log('Submitting risk:', answers)
-    alert('Riesgo registrado exitosamente')
+  if (submitted) {
+    return (
+      <div style={{ padding: '2rem', textAlign: 'center' }}>
+        <h2>¡Riesgo registrado exitosamente!</h2>
+        <p style={{ color: '#666', marginBottom: '1.5rem' }}>La matriz de riesgos se ha actualizado automáticamente.</p>
+        <button onClick={() => { setSubmitted(false); setAnswers({}); setCurrentStep(0); setSelectedQuestionnaire(''); setSelectedArea('') }}
+          style={{ padding: '10px 20px', backgroundColor: '#1976d2', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>
+          Identificar otro riesgo
+        </button>
+      </div>
+    )
   }
 
   return (
-    <div style={{ display: 'flex', height: 'calc(100vh - 60px)' }}>
-      <div style={{ flex: showChat ? 1 : 1, padding: '2rem', transition: 'flex 0.3s' }}>
-        <h2>Cuestionario de Evaluación de Riesgos</h2>
-        <p>Paso {currentStep + 1} de {questions.length}</p>
+    <div style={{ display: 'flex', height: 'calc(100vh - 80px)' }}>
+      <div style={{ flex: showChat ? 1 : 1, padding: '1.5rem', overflow: 'auto', transition: 'flex 0.3s' }}>
+        <h2 style={{ marginBottom: '0.5rem' }}>Identificación Guiada de Riesgos</h2>
+        <p style={{ color: '#666', marginBottom: '1.5rem' }}>Responde las preguntas y la matriz se construirá automáticamente.</p>
 
-        <div style={{ marginBottom: '1rem' }}>
-          <div style={{ height: '4px', backgroundColor: '#e0e0e0', borderRadius: '2px' }}>
-            <div style={{
-              height: '100%',
-              width: `${((currentStep + 1) / questions.length) * 100}%`,
-              backgroundColor: '#1976d2',
-              borderRadius: '2px',
-              transition: 'width 0.3s'
-            }} />
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.5rem' }}>
+          <div>
+            <label style={{ display: 'block', marginBottom: '0.25rem', fontWeight: 500, fontSize: '0.9rem' }}>Área</label>
+            <select value={selectedArea} onChange={e => handleAreaChange(e.target.value)}
+              style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #ddd' }}>
+              <option value="">Seleccionar área...</option>
+              {areas.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+            </select>
+          </div>
+          <div>
+            <label style={{ display: 'block', marginBottom: '0.25rem', fontWeight: 500, fontSize: '0.9rem' }}>Categoría</label>
+            <select value={selectedCategory} onChange={e => setSelectedCategory(e.target.value)}
+              style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #ddd' }}>
+              <option value="">Seleccionar categoría...</option>
+              {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
           </div>
         </div>
 
-        <div style={{ marginBottom: '2rem' }}>
-          <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>
-            {currentQuestion.text}
-          </label>
-          {currentQuestion.type === 'textarea' ? (
-            <textarea
-              value={answers[currentQuestion.id] || ''}
-              onChange={(e) => handleAnswer(e.target.value)}
-              style={{ width: '100%', minHeight: '100px', padding: '8px', borderRadius: '4px', border: '1px solid #ddd' }}
-            />
-          ) : currentQuestion.type === 'select' ? (
-            <select
-              value={answers[currentQuestion.id] || ''}
-              onChange={(e) => handleAnswer(e.target.value)}
-              style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #ddd' }}
-            >
-              <option value="">Seleccionar...</option>
-              {currentQuestion.options?.map(opt => (
-                <option key={opt} value={opt}>{opt}</option>
-              ))}
-            </select>
-          ) : (
-            <input
-              type={currentQuestion.type}
-              value={answers[currentQuestion.id] || ''}
-              onChange={(e) => handleAnswer(e.target.value)}
-              style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #ddd' }}
-            />
-          )}
-        </div>
+        {selectedQuestionnaire && questions.length > 0 && (
+          <>
+            <div style={{ marginBottom: '1rem' }}>
+              <p style={{ fontSize: '0.9rem', fontWeight: 500 }}>{currentQ?.name}</p>
+              <div style={{ height: '4px', backgroundColor: '#e0e0e0', borderRadius: '2px' }}>
+                <div style={{ height: '100%', width: `${((currentStep + 1) / questions.length) * 100}%`, backgroundColor: '#1976d2', borderRadius: '2px', transition: 'width 0.3s' }} />
+              </div>
+              <p style={{ fontSize: '0.8rem', color: '#999' }}>Pregunta {currentStep + 1} de {questions.length}</p>
+            </div>
 
-        <div style={{ display: 'flex', gap: '1rem' }}>
-          <button
-            onClick={handlePrevious}
-            disabled={currentStep === 0}
-            style={{ padding: '8px 16px', backgroundColor: '#757575', color: 'white', border: 'none', borderRadius: '4px', cursor: currentStep === 0 ? 'not-allowed' : 'pointer' }}
-          >
-            Anterior
-          </button>
-          {currentStep === questions.length - 1 ? (
-            <button
-              onClick={handleSubmit}
-              style={{ padding: '8px 16px', backgroundColor: '#4caf50', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
-            >
-              Enviar
-            </button>
-          ) : (
-            <button
-              onClick={handleNext}
-              style={{ padding: '8px 16px', backgroundColor: '#1976d2', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
-            >
-              Siguiente
-            </button>
-          )}
-          <button
-            onClick={() => setShowChat(!showChat)}
-            style={{ padding: '8px 16px', backgroundColor: '#9c27b0', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
-          >
-            {showChat ? 'Ocultar Chat' : 'Risk Copilot'}
-          </button>
-        </div>
+            <div style={{ backgroundColor: 'white', borderRadius: '8px', padding: '1.5rem', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', marginBottom: '1.5rem' }}>
+              <label style={{ display: 'block', marginBottom: '0.75rem', fontWeight: 500, fontSize: '1.05rem' }}>
+                {questions[currentStep]?.text}
+                {questions[currentStep]?.isRequired && <span style={{ color: '#f44336' }}> *</span>}
+              </label>
+              {questions[currentStep]?.questionType === 'textarea' ? (
+                <textarea value={answers[questions[currentStep]?.id] || ''} onChange={e => handleAnswer(e.target.value)}
+                  style={{ width: '100%', minHeight: '100px', padding: '10px', borderRadius: '6px', border: '1px solid #ddd', fontSize: '0.95rem' }} />
+              ) : questions[currentStep]?.questionType === 'select' && questions[currentStep]?.options ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  {questions[currentStep].options.split('|').map(opt => (
+                    <label key={opt} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px', borderRadius: '6px', border: answers[questions[currentStep].id] === opt ? '2px solid #1976d2' : '1px solid #ddd', cursor: 'pointer', backgroundColor: answers[questions[currentStep].id] === opt ? '#e3f2fd' : 'white' }}>
+                      <input type="radio" name={questions[currentStep].id} value={opt} checked={answers[questions[currentStep].id] === opt} onChange={e => handleAnswer(e.target.value)} />
+                      <span>{opt}</span>
+                    </label>
+                  ))}
+                </div>
+              ) : (
+                <input type="text" value={answers[questions[currentStep]?.id] || ''} onChange={e => handleAnswer(e.target.value)}
+                  style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #ddd', fontSize: '0.95rem' }} />
+              )}
+            </div>
+
+            <div style={{ display: 'flex', gap: '0.75rem' }}>
+              <button onClick={() => setCurrentStep(prev => Math.max(0, prev - 1))} disabled={currentStep === 0}
+                style={{ padding: '10px 20px', backgroundColor: '#757575', color: 'white', border: 'none', borderRadius: '6px', cursor: currentStep === 0 ? 'not-allowed' : 'pointer', opacity: currentStep === 0 ? 0.5 : 1 }}>
+                Anterior
+              </button>
+              {currentStep === questions.length - 1 ? (
+                <button onClick={handleSubmit} disabled={submitting || !selectedCategory}
+                  style={{ padding: '10px 20px', backgroundColor: '#4caf50', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>
+                  {submitting ? 'Enviando...' : 'Enviar'}
+                </button>
+              ) : (
+                <button onClick={() => setCurrentStep(prev => Math.min(questions.length - 1, prev + 1))}
+                  style={{ padding: '10px 20px', backgroundColor: '#1976d2', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>
+                  Siguiente
+                </button>
+              )}
+              <button onClick={() => setShowChat(!showChat)}
+                style={{ padding: '10px 20px', backgroundColor: '#9c27b0', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>
+                {showChat ? 'Ocultar Risk Copilot' : 'Risk Copilot'}
+              </button>
+            </div>
+          </>
+        )}
       </div>
 
       {showChat && (
-        <div style={{ width: '350px', borderLeft: '1px solid #ddd', padding: '1rem', backgroundColor: '#f9f9f9' }}>
-          <h3>Risk Copilot</h3>
-          <div style={{ height: 'calc(100% - 100px)', overflow: 'auto', marginBottom: '1rem' }}>
-            <div style={{ padding: '8px', backgroundColor: '#e3f2fd', borderRadius: '8px', marginBottom: '8px' }}>
-              Hola, soy Risk Copilot. Puedo ayudarte a responder las preguntas del cuestionario.
+        <div style={{ width: '350px', borderLeft: '1px solid #ddd', padding: '1rem', backgroundColor: '#f9f9f9', display: 'flex', flexDirection: 'column' }}>
+          <h3 style={{ marginBottom: '1rem' }}>Risk Copilot</h3>
+          <div style={{ flex: 1, overflow: 'auto', marginBottom: '1rem' }}>
+            <div style={{ padding: '10px', backgroundColor: '#e3f2fd', borderRadius: '8px', marginBottom: '8px', fontSize: '0.9rem' }}>
+              Hola, soy Risk Copilot. Puedo ayudarte a identificar y evaluar riesgos. Pregúntame lo que necesites.
             </div>
           </div>
           <div style={{ display: 'flex', gap: '8px' }}>
-            <input
-              type="text"
-              placeholder="Escribe tu pregunta..."
-              style={{ flex: 1, padding: '8px', borderRadius: '4px', border: '1px solid #ddd' }}
-            />
-            <button style={{ padding: '8px 12px', backgroundColor: '#1976d2', color: 'white', border: 'none', borderRadius: '4px' }}>
-              Enviar
-            </button>
+            <input type="text" placeholder="Ej: ¿Qué controles recomiendas?" style={{ flex: 1, padding: '10px', borderRadius: '6px', border: '1px solid #ddd' }} />
+            <button style={{ padding: '10px 14px', backgroundColor: '#1976d2', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>Enviar</button>
           </div>
         </div>
       )}

@@ -6,6 +6,11 @@ import Questionnaire from './pages/Questionnaire'
 import RiskMap from './pages/RiskMap'
 import AuditView from './pages/AuditView'
 import Login from './pages/Login'
+import RiskCatalog from './pages/RiskCatalog'
+import Controls from './pages/Controls'
+import ActionPlans from './pages/ActionPlans'
+import Evidences from './pages/Evidences'
+import History from './pages/History'
 
 function App() {
   const isAuthenticated = useIsAuthenticated()
@@ -18,9 +23,14 @@ function App() {
     <Layout>
       <Routes>
         <Route path="/" element={<Dashboard />} />
-        <Route path="/questionnaire" element={<Questionnaire />} />
+        <Route path="/risk-catalog" element={<RiskCatalog />} />
         <Route path="/risk-map" element={<RiskMap />} />
+        <Route path="/questionnaire" element={<Questionnaire />} />
+        <Route path="/controls" element={<Controls />} />
+        <Route path="/action-plans" element={<ActionPlans />} />
         <Route path="/audit" element={<AuditView />} />
+        <Route path="/evidences" element={<Evidences />} />
+        <Route path="/history" element={<History />} />
       </Routes>
     </Layout>
   )

@@ -29,3 +29,28 @@ public enum AuditAction
     Approved,
     Rejected
 }
+
+public enum ImpactDimension
+{
+    Financial = 0,
+    Operational = 1,
+    Reputational = 2,
+    Legal = 3,
+    Client = 4
+}
+
+public enum ControlType
+{
+    Preventive = 0,
+    Detective = 1,
+    Corrective = 2
+}
+
+public enum ControlFrequency
+{
+    Daily = 0,
+    Weekly = 1,
+    Monthly = 2,
+    Quarterly = 3,
+    Annually = 4
+}

@@ -18,6 +18,14 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IAuditService, AuditService>();
         services.AddScoped<IAiOrchestrator, AiOrchestrator>();
 
+        services.AddScoped<IControlRepository, ControlRepository>();
+        services.AddScoped<IActionPlanRepository, ActionPlanRepository>();
+        services.AddScoped<IQuestionnaireRepository, QuestionnaireRepository>();
+        services.AddScoped<IAuditStandardRepository, AuditStandardRepository>();
+
+        services.AddScoped<IKpiService, KpiService>();
+        services.AddScoped<INotificationService, NotificationService>();
+
         services.AddCors(options =>
         {
             options.AddPolicy("AllowFrontend", builder =>
